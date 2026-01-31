@@ -1,8 +1,6 @@
 // Package exectest is [os/exec] package testing facilities.
 //
 // The main goal of the package: declarative testing of any executable..
-//
-// TODO: extract into the separate library, might be useful.
 package exectest
 
 import (
@@ -18,17 +16,27 @@ import (
 )
 
 const (
-	// TODO: replace -- with something more unique.
-	// This is the comment start in Lua, so the tests look odd.
-	filePrefix       = "--file:"
-	stdoutPrefix     = "--stdout"
-	stderrPrefix     = "--stderr"
-	stdinPrefix      = "--stdin"
+	// This is the comment start in Lua, so there might be problems.
+	filePrefix   = "--file:"
+	stdoutPrefix = "--stdout"
+	stderrPrefix = "--stderr"
+	stdinPrefix  = "--stdin"
+	// TODO: add `--env:KEY=value` setting.
 	argPrefix        = "--arg:"
 	returnCodePrefix = "--return-code:"
 )
 
 type cmdOption func(*exec.Cmd)
+
+// ExecuteForFile the same as the [Execute] but uses a file (path) with a scheme.
+func ExecuteForFile(t *testing.T, binary string, file string, opts ...cmdOption) {
+	t.Helper()
+	content, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("Failed to read test file %s: %v", file, err)
+	}
+	Execute(t, binary, string(content), opts...)
+}
 
 // Execute is the main testing facility of the package.
 //
@@ -107,16 +115,6 @@ func executeCommand(t *testing.T, binary string, dir string, args []string, stdi
 	return stdoutBuilder.String(), stderrBuilder.String(), cmd.ProcessState.ExitCode()
 }
 
-// ExecuteForFile the same as the [Execute] but uses a file (path) with a scheme.
-func ExecuteForFile(t *testing.T, binary string, file string, opts ...cmdOption) {
-	t.Helper()
-	content, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatalf("Failed to read test file %s: %v", file, err)
-	}
-	Execute(t, binary, string(content), opts...)
-}
-
 func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []string, string) {
 	t.Helper()
 
@@ -126,16 +124,15 @@ func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []
 		}
 	})
 
-	// TODO: Make test fail if the same field defined twice.
 	var stdout strings.Builder
 	var stderr strings.Builder
 	var stdin strings.Builder
 	var returnCode int
 	var args []string
-
-	dir := t.TempDir()
 	files := make(map[string]string)
+	dir := t.TempDir()
 
+	// TODO: Make test fail if the same field defined twice.
 	// TODO: Replace with enum.
 	// FSM is always good for readability.
 	var isStdout bool
