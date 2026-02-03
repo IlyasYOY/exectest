@@ -287,6 +287,7 @@ func evaluateVariables(data string, dir string) string {
 // toLines splits strings to lines compatible with [strings.Lines].
 func toLines(data string) []string {
 	scanner := bufio.NewScanner(strings.NewReader(data))
+	scanner.Buffer(nil, 1024*1024) // Set max token size to 1MB for long lines
 	lines := []string{}
 	for scanner.Scan() {
 		line := scanner.Text()
