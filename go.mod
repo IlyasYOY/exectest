@@ -1,5 +1,5 @@
 module github.com/IlyasYOY/exectest
 
-go 1.23
+go 1.19
 
 require github.com/google/go-cmp v0.7.0

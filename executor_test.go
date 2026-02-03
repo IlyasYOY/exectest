@@ -150,7 +150,8 @@ value123
 }
 
 func TestExecuteParallelExecutions(t *testing.T) {
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
+		i := i
 		t.Run(fmt.Sprintf("p-%d", i), func(t *testing.T) {
 			t.Parallel()
 			exectest.Execute(t, "sh", fmt.Sprintf(`

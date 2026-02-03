@@ -4,10 +4,10 @@
 package exectest
 
 import (
+	"bufio"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -85,8 +85,8 @@ func assertReturnCode(t *testing.T, want, got int) bool {
 
 func assertNoDiff(t *testing.T, name string, want string, got string) bool {
 	t.Helper()
-	wantLines := slices.Collect(strings.Lines(want))
-	gotLines := slices.Collect(strings.Lines(got))
+	wantLines := toLines(want)
+	gotLines := toLines(got)
 	if diff := cmp.Diff(wantLines, gotLines); diff != "" {
 		t.Errorf("Failed matching %s (-missing line, +extra line): \n%s", name, diff)
 		return true
@@ -175,7 +175,7 @@ func prepareScheme(t *testing.T, scheme string) schemeResult {
 		currentFile.Reset()
 	}
 
-	for line := range strings.Lines(scheme) {
+	for _, line := range toLines(scheme) {
 		if strings.HasPrefix(line, stderrPrefix) {
 			saveFile("")
 			isFile = false
@@ -282,4 +282,16 @@ func prepareScheme(t *testing.T, scheme string) schemeResult {
 func evaluateVariables(data string, dir string) string {
 	data = strings.ReplaceAll(data, "{dir}", dir)
 	return data
+}
+
+// toLines splits strings to lines compatible with [strings.Lines].
+func toLines(data string) []string {
+	scanner := bufio.NewScanner(strings.NewReader(data))
+	lines := []string{}
+	for scanner.Scan() {
+		line := scanner.Text()
+		line += "\n"
+		lines = append(lines, line)
+	}
+	return lines
 }
