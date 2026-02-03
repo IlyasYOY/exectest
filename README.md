@@ -18,4 +18,5 @@ Or you might call it for the file path to the description using
 `ExecuteForFile` function.
 
 Check out the docs for more info. See the [tests](./executor_test.go) for
-examples.
+examples. The real-usage example you might find in
+[monotask](https://github.com/IlyasYOY/monotask/blob/main/internal/tests/testdata_test.go).
