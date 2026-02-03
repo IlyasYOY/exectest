@@ -164,3 +164,34 @@ func TestExecuteParallelExecutions(t *testing.T) {
 		})
 	}
 }
+
+func TestExecuteEnvVariableIsSet(t *testing.T) {
+	exectest.Execute(t, "sh", `
+--env:FOO=hello_world
+--arg:-c
+--arg:printf "%s\n" "$FOO"
+--stdout
+hello_world
+`)
+}
+
+func TestExecuteEnvVariableWithPlaceholder(t *testing.T) {
+	exectest.Execute(t, "sh", fmt.Sprintf(`
+--env:DIR_PATH=%s
+--arg:-c
+--arg:printf "dir=%s\n" "$DIR_PATH"
+--stdout
+dir=%s
+`, "{dir}", "{dir}", "{dir}"))
+}
+
+func TestExecuteMultipleEnvVariables(t *testing.T) {
+	exectest.Execute(t, "sh", `
+--env:ONE=1
+--env:TWO=2
+--arg:-c
+--arg:printf "%s:%s\n" "$ONE" "$TWO"
+--stdout
+1:2
+`)
+}

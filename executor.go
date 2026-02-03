@@ -17,11 +17,11 @@ import (
 
 const (
 	// This is the comment start in Lua, so there might be problems.
-	filePrefix   = "--file:"
-	stdoutPrefix = "--stdout"
-	stderrPrefix = "--stderr"
-	stdinPrefix  = "--stdin"
-	// TODO: add `--env:KEY=value` setting.
+	filePrefix       = "--file:"
+	stdoutPrefix     = "--stdout"
+	stderrPrefix     = "--stderr"
+	stdinPrefix      = "--stdin"
+	envPrefix        = "--env:"
 	argPrefix        = "--arg:"
 	returnCodePrefix = "--return-code:"
 )
@@ -61,16 +61,16 @@ func ExecuteForFile(t *testing.T, binary string, file string, opts ...cmdOption)
 // directory with a.txt and .b.txt files.
 func Execute(t *testing.T, binary, scheme string, opts ...cmdOption) {
 	t.Helper()
-	wantStdout, wantStderr, stdin, wantReturnCode, args, dir := prepareScheme(t, scheme)
+	schemeResult := prepareScheme(t, scheme)
 
-	gotStdout, gotStderr, gotReturnCode := executeCommand(t, binary, dir, args, stdin, opts)
+	executionResult := executeCommand(t, binary, schemeResult.Dir, schemeResult.Args, schemeResult.Stdin, schemeResult.Env, opts)
 
-	assertReturnCode(t, wantReturnCode, gotReturnCode)
-	if assertNoDiff(t, "stdout", wantStdout, gotStdout) {
-		t.Logf("stdout:\n%s", gotStdout)
+	assertReturnCode(t, schemeResult.ReturnCode, executionResult.ReturnCode)
+	if assertNoDiff(t, "stdout", schemeResult.Stdout, executionResult.Stdout) {
+		t.Logf("stdout:\n%s", executionResult.Stdout)
 	}
-	if assertNoDiff(t, "stderr", wantStderr, gotStderr) {
-		t.Logf("stderr:\n%s", gotStderr)
+	if assertNoDiff(t, "stderr", schemeResult.Stderr, executionResult.Stderr) {
+		t.Logf("stderr:\n%s", executionResult.Stderr)
 	}
 }
 
@@ -94,7 +94,13 @@ func assertNoDiff(t *testing.T, name string, want string, got string) bool {
 	return false
 }
 
-func executeCommand(t *testing.T, binary string, dir string, args []string, stdin string, opts []cmdOption) (string, string, int) {
+type executionResult struct {
+	Stdout     string
+	Stderr     string
+	ReturnCode int
+}
+
+func executeCommand(t *testing.T, binary string, dir string, args []string, stdin string, env []string, opts []cmdOption) executionResult {
 	t.Helper()
 
 	cmd := exec.Command(binary)
@@ -108,14 +114,31 @@ func executeCommand(t *testing.T, binary string, dir string, args []string, stdi
 	for _, opt := range opts {
 		opt(cmd)
 	}
+	if len(env) > 0 {
+		cmd.Env = append(cmd.Environ(), env...)
+	}
 
 	// this is intentional, we will assert exit code manually
 	_ = cmd.Run()
 
-	return stdoutBuilder.String(), stderrBuilder.String(), cmd.ProcessState.ExitCode()
+	return executionResult{
+		Stdout:     stdoutBuilder.String(),
+		Stderr:     stderrBuilder.String(),
+		ReturnCode: cmd.ProcessState.ExitCode(),
+	}
 }
 
-func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []string, string) {
+type schemeResult struct {
+	Stdout     string
+	Stderr     string
+	Stdin      string
+	ReturnCode int
+	Args       []string
+	Env        []string
+	Dir        string
+}
+
+func prepareScheme(t *testing.T, scheme string) schemeResult {
 	t.Helper()
 
 	t.Cleanup(func() {
@@ -129,12 +152,12 @@ func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []
 	var stdin strings.Builder
 	var returnCode int
 	var args []string
+	var env []string
 	files := make(map[string]string)
 	dir := t.TempDir()
 
 	// TODO: Make test fail if the same field defined twice.
-	// TODO: Replace with enum.
-	// FSM is always good for readability.
+	// TODO: Replace with enum. FSM is always good for readability.
 	var isStdout bool
 	var isStderr bool
 	var isStdin bool
@@ -201,6 +224,15 @@ func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []
 			args = append(args, arg)
 			continue
 		}
+		if kv, ok := strings.CutPrefix(line, envPrefix); ok {
+			kv = strings.TrimSpace(kv)
+			kv = evaluateVariables(kv, dir)
+			if !strings.Contains(kv, "=") {
+				t.Fatalf("Malformed --env entry %q, expected KEY=VALUE", kv)
+			}
+			env = append(env, kv)
+			continue
+		}
 
 		if isStderr {
 			line = evaluateVariables(line, dir)
@@ -236,7 +268,15 @@ func prepareScheme(t *testing.T, scheme string) (string, string, string, int, []
 		}
 	}
 
-	return stdout.String(), stderr.String(), stdin.String(), returnCode, args, dir
+	return schemeResult{
+		Stdout:     stdout.String(),
+		Stderr:     stderr.String(),
+		Stdin:      stdin.String(),
+		ReturnCode: returnCode,
+		Args:       args,
+		Env:        env,
+		Dir:        dir,
+	}
 }
 
 func evaluateVariables(data string, dir string) string {
